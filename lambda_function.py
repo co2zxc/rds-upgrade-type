@@ -1,49 +1,30 @@
 import json
 import boto3
-import random
-import string
-
 
 def lambda_handler(event, context):
-    client = boto3.client('rds')
+    # TODO implement
+    print(event)
+    dims = json.loads(event["Records"][0]["Sns"]["Message"])['Trigger']['Dimensions']
+    for dim in dims:
+        if dim['name'] == 'InstanceId':
+            instance_id = dim['value']
+    print(instance_id)
+    
+    client = boto3.client('ec2')
+    
+    # Stop
+    client.stop_instances(InstanceIds=[instance_id])
+    waiter=client.get_waiter('instance_stopped')
+    waiter.wait(InstanceIds=[instance_id])
 
-    cluster_id = 'poc-postgresql'
-    new_id = ''.join(random.choices(string.ascii_uppercase, k=10))
-    
-    new_id_vv = cluster_id+"-"+new_id
-    
-    response = client.describe_db_clusters(
-        DBClusterIdentifier=cluster_id,
-    )
-    
-    members = response['DBClusters'][0]['DBClusterMembers']
-    
-    for member in members:
-        if member['IsClusterWriter']:
-            writer_id = member['DBInstanceIdentifier']
-    
-    response = client.create_db_instance(
-        #DBInstanceIdentifier=new_id,
-        DBInstanceIdentifier=new_id_vv,
-        DBInstanceClass='db.r5.2xlarge',
-        Engine='aurora-postgresql',
-        DBClusterIdentifier=cluster_id)
-    
-    waiter = client.get_waiter('db_instance_available')
-    
-    #waiter.wait(DBInstanceIdentifier=new_id)
-    waiter.wait(DBInstanceIdentifier=new_id_vv)
-        
-    response = client.failover_db_cluster(
-        DBClusterIdentifier=cluster_id,
-        #TargetDBInstanceIdentifier=new_id
-        TargetDBInstanceIdentifier=new_id_vv
-    )
-    
-    
-    
-    response = client.delete_db_instance(
-        DBInstanceIdentifier=writer_id
-    )
+    # Change
+    client.modify_instance_attribute(InstanceId=instance_id, 
+    Attribute='instanceType', Value='t2.medium')
 
-
+    # Start
+    client.start_instances(InstanceIds=[instance_id])
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from Lambda!')
+    }

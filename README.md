@@ -1,1 +1,1 @@
-"# rds-upgrade-type" 
+# ec2-upgrade-type
